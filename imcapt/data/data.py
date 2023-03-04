@@ -43,7 +43,7 @@ class Flickr8Dataset(Dataset):
         return len(self._captions)
 
 class Flickr8DataModule(L.LightningDataModule):
-    DEFAULT_TRANSFORMS = tr.nn.Sequential(tvis.transforms.Resize((256, 256)))
+    DEFAULT_TRANSFORMS = tr.nn.Sequential(tvis.transforms.Resize((256, 256,)))
 
     def __init__(self, 
                 *args, 
@@ -93,13 +93,13 @@ class Flickr8DataModule(L.LightningDataModule):
                 continue
     
         for split, data in images.items():
-            data = tr.cat(data)
+            data = tr.stack(data)
             dataset = file.require_dataset(f"{split}/images", shape=data.size(), dtype=np.float32)
-            dataset[...] = data
+            dataset[:] = data
         for split, data in encoded_captions.items():
             data = tr.FloatTensor(data)
             dataset = file.require_dataset(f"{split}/captions", data=data, shape=data.size(), dtype=np.float32)
-            dataset[...] = data
+            dataset[:] = data
         dataset = file.require_dataset("word_map", shape=(1,), dtype=h5py.string_dtype())
         dataset[0] = json.dumps(wordmap)
 
@@ -113,8 +113,9 @@ class Flickr8DataModule(L.LightningDataModule):
                 self.images, self.captions, self.word_map = self._h5load()
                 return
             except Exception as e:
-                print(e)
-                ...
+                if verbose:
+                    print("Exception occured when trying to load the data. Computing the data...")
+
         
         words = set()
 
@@ -138,7 +139,7 @@ class Flickr8DataModule(L.LightningDataModule):
 
             split = image['split'] if image['split'] != 'restval' else 'train'
             captions[split].append(image_captions)
-            images[split].append(tensor_image.view(tr.float32))
+            images[split].append(tensor_image.to(tr.float32))
 
         if verbose:
             print("Data loading. Scanning the word map...")
@@ -165,7 +166,7 @@ class Flickr8DataModule(L.LightningDataModule):
         if self._h5_load_path is not None:
             self._h5save(images, encoded_captions, word_map)
 
-        self._h5load()
+        self.images, self.captions, self.word_map = self._h5load()
 
     
     def _create_word_map(self, words=None):
@@ -207,7 +208,10 @@ if __name__ == "__main__":
     count = 0
     for input, label in dl.train_dataloader():
         count += 1
+        if count == 1:
+            print(input.size())
         assert type(input) == tr.Tensor
         assert type(label) == tr.Tensor
+        
     print(count)
         
