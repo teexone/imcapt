@@ -14,12 +14,12 @@ import h5py
 
 
 class Flickr8Dataset(Dataset):
-    def __init__(self, images, captions) -> None:
+    def __init__(self, images, captions, captions_per_image=5) -> None:
         super().__init__()
         self._images = images
         self._captions = captions
-        self._index = np.concatenate(([0], np.cumsum(list(map(len, captions)))[:-1],))
-        # print(self._index)
+        self._index = np.arange(0, len(captions), captions_per_image)
+
 
     def _getindex(self, i):
         l, r = 0, len(self._index)
@@ -33,11 +33,12 @@ class Flickr8Dataset(Dataset):
 
     def __getitem__(self, index) -> tr.Tensor:
         i = self._getindex(index)
+        print(i)
         # assert i <= index
         # assert i < len(self._images), "image index out"
         # assert self._index[i] < len(self._captions), (len(self._captions), self._index[i],)
         # assert index - self._index[i] < len(self._captions[i])
-        return self._images[i], tr.Tensor(self._captions[self._index[i]][index - self._index[i]])
+        return self._images[i], tr.Tensor(self._captions[index])
     
     def __len__(self):
         return len(self._captions)
@@ -54,6 +55,7 @@ class Flickr8DataModule(L.LightningDataModule):
                  force_word_map_update=False,
                  batch_size=20, 
                  max_caption_length=100, 
+                 captions_per_image=5,
                  transforms=DEFAULT_TRANSFORMS, 
                  **kwargs) -> None:
         
@@ -99,7 +101,6 @@ class Flickr8DataModule(L.LightningDataModule):
         for split, data in encoded_captions.items():
             data = tr.FloatTensor(data)
             data = tr.cat(data.unbind(dim=0))
-            print(data.size())
             dataset = file.require_dataset(f"{split}/captions", data=data, shape=data.size(), dtype=np.float32)
             dataset[:] = data
         dataset = file.require_dataset("word_map", shape=(1,), dtype=h5py.string_dtype())
@@ -188,27 +189,31 @@ class Flickr8DataModule(L.LightningDataModule):
         
     def train_dataloader(self) -> DataLoader:
         return DataLoader(dataset=Flickr8Dataset(images=self.images['train'], 
-                                                 captions=self.captions['train']), 
+                                                 captions=self.captions['train'],
+                                                   captions_per_image=5), 
                                                  batch_size=self.batch_size)
     
     def val_dataloader(self) -> DataLoader:
 
         return DataLoader(dataset=Flickr8Dataset(self.images['val'], 
-                                                self.captions['val']), 
-                                                batch_size=self.batch_size)
+                                                self.captions['val'],
+                                                captions_per_image=5), 
+                                                batch_size=self.batch_size,)
     def test_dataloader(self) -> DataLoader:
         return DataLoader(dataset=Flickr8Dataset(self.images['test'], 
-                                                self.captions['test']), 
+                                                self.captions['test'],
+                                                captions_per_image=5), 
                                                 batch_size=self.batch_size)
                 
 
 if __name__ == "__main__":
     dl = Flickr8DataModule(captions_path="./datasets/captions/dataset_flickr8k.json", 
                            folder_path="./datasets/flickr8/images",
-                           h5_load="./datasets/h5")
+                           h5_load="./datasets/h5"
+                           captions_per_image=5)
     dl.setup(stage="")
     count = 0
-    # for input, label in dl.train_dataloader():
-        
+    for input, label in dl.train_dataloader():
+        ...
     print(len(dl.train_dataloader().dataset._captions))
         
