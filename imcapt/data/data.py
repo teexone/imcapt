@@ -98,6 +98,8 @@ class Flickr8DataModule(L.LightningDataModule):
             dataset[:] = data
         for split, data in encoded_captions.items():
             data = tr.FloatTensor(data)
+            data = tr.cat(data.unbind(dim=0))
+            print(data.size())
             dataset = file.require_dataset(f"{split}/captions", data=data, shape=data.size(), dtype=np.float32)
             dataset[:] = data
         dataset = file.require_dataset("word_map", shape=(1,), dtype=h5py.string_dtype())
@@ -206,12 +208,7 @@ if __name__ == "__main__":
                            h5_load="./datasets/h5")
     dl.setup(stage="")
     count = 0
-    for input, label in dl.train_dataloader():
-        count += 1
-        if count == 1:
-            print(input.size())
-        assert type(input) == tr.Tensor
-        assert type(label) == tr.Tensor
+    # for input, label in dl.train_dataloader():
         
-    print(count)
+    print(len(dl.train_dataloader().dataset._captions))
         
