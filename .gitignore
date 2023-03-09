@@ -2,3 +2,6 @@ __pycache__/
 *.hdf5
 *.zip
 .vscode
+.pytest_cache
+train2014
+datasets/
