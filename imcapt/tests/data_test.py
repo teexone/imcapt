@@ -1,13 +1,14 @@
 import json
 import os
 from imcapt.data.data import Flickr8DataModule
-import torch as tr
+import torch as torch
 import torchvision as travis
 import numpy as np
 
 dl = Flickr8DataModule(captions_path="./datasets/captions/dataset_flickr8k.json",
                        folder_path="./datasets/flickr8/images",
                        h5_load="./datasets/h5",
+                       max_caption_length=20
                        )
 dl.setup(stage="")
 img = json.load(open("./datasets/captions/dataset_flickr8k.json"))
@@ -21,23 +22,23 @@ def test_train():
         count += 1
         if count % 250 == 0:
             print(f"Iters done: {count}")
-        assert type(input) == tr.Tensor and type(label) == tr.Tensor
+        assert type(input) == torch.Tensor and type(label) == torch.Tensor
         data = []
         for i in input:
             data.append(i)
-        data_pics = tr.stack(data)
+        data_pics = torch.stack(data)
         data_pics = data_pics.unique(dim=0)
         tst = []
         while len(tst) != len(data_pics):
             assert ind < len(img)
             if img[ind]['split'] == 'train' or img[ind]['split'] == 'restval':
                 tenz = travis.io.read_image(os.path.join("./datasets/flickr8/Images/", img[ind]['filename']), mode=travis.io.ImageReadMode.RGB)
-                tst.append(trans(tenz).to(tr.float32))
+                tst.append(trans(tenz).to(torch.float32))
             ind += 1
-        test_pics = tr.stack(tst)
+        test_pics = torch.stack(tst)
         test_pics = test_pics.unique(dim=0)
         for t1, t2 in zip(data_pics, test_pics):
-            assert tr.equal(t1, t2)
+            assert torch.equal(t1, t2)
     print(f"Iter nums: {count}")
 
 def test_test():
@@ -47,11 +48,11 @@ def test_test():
         count += 1
         if count % 250 == 0:
             print(f"Iters done: {count}")
-        assert type(input) == tr.Tensor and type(label) == tr.Tensor
+        assert type(input) == torch.Tensor and type(label) == torch.Tensor
         data = []
         for i in input:
             data.append(i)
-        data_pics = tr.stack(data)
+        data_pics = torch.stack(data)
         data_pics = data_pics.unique(dim=0)
         tst = []
         while len(tst) != len(data_pics):
@@ -59,12 +60,12 @@ def test_test():
             if img[ind]['split'] == 'test':
                 tenz = travis.io.read_image(os.path.join("./datasets/flickr8/Images/", img[ind]['filename']),
                                             mode=travis.io.ImageReadMode.RGB)
-                tst.append(trans(tenz).to(tr.float32))
+                tst.append(trans(tenz).to(torch.float32))
             ind += 1
-        test_pics = tr.stack(tst)
+        test_pics = torch.stack(tst)
         test_pics = test_pics.unique(dim=0)
         for t1, t2 in zip(data_pics, test_pics):
-            assert tr.equal(t1, t2)
+            assert torch.equal(t1, t2)
 
     print(f"Iter nums: {count}")
 
@@ -76,11 +77,11 @@ def test_val():
         count += 1
         if count % 250 == 0:
             print(f"Iters done: {count}")
-        assert type(input) == tr.Tensor and type(label) == tr.Tensor
+        assert type(input) == torch.Tensor and type(label) == torch.Tensor
         data = []
         for i in input:
             data.append(i)
-        data_pics = tr.stack(data)
+        data_pics = torch.stack(data)
         data_pics = data_pics.unique(dim=0)
         tst = []
         while len(tst) != len(data_pics):
@@ -88,10 +89,10 @@ def test_val():
             if img[ind]['split'] == 'val':
                 tenz = travis.io.read_image(os.path.join("./datasets/flickr8/Images/", img[ind]['filename']),
                                             mode=travis.io.ImageReadMode.RGB)
-                tst.append(trans(tenz).to(tr.float32))
+                tst.append(trans(tenz).to(torch.float32))
             ind += 1
-        test_pics = tr.stack(tst)
+        test_pics = torch.stack(tst)
         test_pics = test_pics.unique(dim=0)
         for t1, t2 in zip(data_pics, test_pics):
-            assert tr.equal(t1, t2)
+            assert torch.equal(t1, t2)
     print(f"Iter nums: {count}")

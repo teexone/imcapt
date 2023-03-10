@@ -1,61 +1,178 @@
 from collections import Counter, defaultdict
 import copy
-from typing import Dict, List
+from typing import Dict, Iterable, List
 import pytorch_lightning as L
 import torchvision as tvis
-import torch as tr
+import torch as torch
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 import json
 import os
 import tqdm
-import csv
 import h5py
+
+class Vocabulary:
+    """Stores vocabular and operates with H5 files"""
+
+    @staticmethod
+    def from_h5(file: str|h5py.File, 
+                group_path="vocabular",
+                words_dict_path="words",
+                inverted_dict_path="inverted"):
+        """Load vocabulary from an h5 file
+
+        Args:
+            - file: 
+                path to file or h5py.File itself
+            - group_path: 
+                path to group (str) in h5 hierarchy
+            - words_dict_path: 
+                path to words index dataset (str) in h5 group hierarchy
+            - inverted_dict_path: 
+                path to inverted words index dataset (str) in h5 group hierarchy
+        
+        Returns:
+            Constructed Vocabulary object
+        """
+        if isinstance(file, str):
+            file = h5py.File(file) 
+
+        vocabulary = Vocabulary()
+        vocabulary._word_map = json.loads(
+            file.get(f"{group_path}/{words_dict_path}")[0]
+        )
+        vocabulary._inverted_word_map = json.loads(
+            file.get(f"{group_path}/{inverted_dict_path}")[0]
+        )
+        vocabulary._words_count = len(vocabulary._word_map)
+        return vocabulary
+
+    def to_h5(  self,
+                file: str|h5py.File, 
+                group_path="vocabular",
+                words_dict_path="words",
+                inverted_dict_path="inverted"):
+        """Saves vocabulary in h5 file
+
+        Args:
+            - file: 
+                path to file or h5py.File itself
+            - group_path: 
+                path to group (str) in h5 hierarchy
+            - words_dict_path: 
+                path to words index dataset (str) in h5 group hierarchy
+            - inverted_dict_path: 
+                path to inverted words index dataset (str) in h5 group hierarchy
+        """
+        
+        if isinstance(file, str):
+            file = h5py.File(file) 
+   
+        group = file.require_group(group_path)
+        w_map_ds = group.require_dataset(words_dict_path, shape=(1,), dtype=h5py.string_dtype())
+        w_map_ds[0] = json.dumps(self._word_map)
+        iw_map_ds = group.require_dataset(inverted_dict_path, shape=(1,), dtype=h5py.string_dtype())
+        iw_map_ds[0] = json.dumps(self._inverted_word_map)
+   
+    def _next_word_id(self):
+        """Generates a numeric representation for new word"""
+        return self._words_count
+    
+    def add(self, word: str):
+        if word not in self._word_map:
+            id = self._next_word_id()
+            self._word_map[word] = id
+            self._inverted_word_map[id] = word
+            self._words_count += 1
+
+    def update(self, words: Iterable[str]):
+        for word in words:
+            self.add(word)
+
+    def get(self, reference: str|int):
+        if isinstance(reference, str):
+            return self._word_map.get(str(reference), self._word_map['<UNKNOWN>'])
+        else:
+            return self._inverted_word_map.get(str(int(reference)), '<UNKNOWN>')
+
+    def _init_special_tokens(self):
+        for x in ["<START>", "<END>", "<UNKNOWN>", "<PADDING>"]:
+            self.add(x)
+
+    def __getitem__(self, key):
+        return self.get(key)
+    
+    
+    def __iter__(self):
+        return self._word_map.__iter__()
+    
+    def size(self):
+        return self._words_count
+
+    def __init__(self) -> None:
+        self._words_count = 0
+        self._word_map = {}
+        self._inverted_word_map = {}
+        self._init_special_tokens()
+
+    def clean(self, sentence: Iterable[int]):
+        cleaned = []
+        not_in = [
+            self.get("<START>"),
+            self.get("<END>"),
+            self.get("<UNKNOWN>"),
+            self.get("<PADDING>")
+        ]
+        for word in sentence:
+            word = int(word)
+            if word not in not_in:
+                cleaned.append(word)
+        return cleaned
+            
 
 
 class Flickr8Dataset(Dataset):
-    def __init__(self, images, captions, captions_per_image=5) -> None:
+    def __init__(self, images, captions, captions_iids, combine=False) -> None:
         super().__init__()
         self._images = images
         self._captions = captions
-        self._index = np.arange(0, len(captions), captions_per_image)
-
-
-    def _getindex(self, i):
-        l, r = 0, len(self._index)
-        while r - l > 1:
-            m = (l + r) >> 1
-            if self._index[m] <= i:
-                l = m
-            else:
-                r = m
-        return l
-
-    def __getitem__(self, index) -> tr.Tensor:
-        i = self._getindex(index)
-        print(i)
-        # assert i <= index
-        # assert i < len(self._images), "image index out"
-        # assert self._index[i] < len(self._captions), (len(self._captions), self._index[i],)
-        # assert index - self._index[i] < len(self._captions[i])
-        return self._images[i], tr.Tensor(self._captions[index])
+        self._captions_iids = captions_iids
+        self._combined = combine
+        
+        if combine:
+            self.__combined = defaultdict(list)
+            max_size = 0
+            for c, i in zip(self._captions, self._captions_iids):
+                self.__combined[i].append(torch.LongTensor(c))
+                max_size = max(max_size, len(self.__combined[i]))
+            
+            for _c in self.__combined.values():
+                while len(_c) < max_size:
+                    _c.append(_c[-1])
+    
+    def __getitem__(self, index) -> torch.Tensor:
+        if self._combined:
+            return self._images[index], torch.stack(self.__combined[index])
+        else:
+            return self._images[int(self._captions_iids[index])], torch.LongTensor(self._captions[index])
     
     def __len__(self):
-        return len(self._captions)
+        if self._combined:
+            return len(self._images)
+        else:
+            return len(self._captions)
 
 class Flickr8DataModule(L.LightningDataModule):
-    DEFAULT_TRANSFORMS = tr.nn.Sequential(tvis.transforms.Resize((256, 256,)))
-
+    DEFAULT_TRANSFORMS = torch.nn.Sequential(tvis.transforms.Resize((256, 256,)))
+    
     def __init__(self, 
                 *args, 
                  folder_path=None, 
                  captions_path=None, 
-                 word_map_path=None,
                  h5_load=None,
-                 force_word_map_update=False,
                  batch_size=20, 
                  max_caption_length=100, 
-                 captions_per_image=5,
+                 vocabular=Vocabulary(),
                  transforms=DEFAULT_TRANSFORMS, 
                  **kwargs) -> None:
         
@@ -67,153 +184,160 @@ class Flickr8DataModule(L.LightningDataModule):
 
         self.images = defaultdict(lambda: h5py.Empty(np.float32))
         self.captions = defaultdict(lambda: h5py.Empty(np.float32))
-        self.word_map = h5py.Empty(np.float32)
+        self.caption_iids = defaultdict(lambda: h5py.Empty(np.int32))
 
+        self.vocabulary = vocabular
         self.transforms = transforms
         self.batch_size = batch_size
         self.max_caption_length = max_caption_length
 
-        self._word_map_path = word_map_path if word_map_path is not None else "./word_map.csv" 
-        self._force_word_map_update = force_word_map_update
         self._h5_load_path = h5_load
+        self._preload = False
+
+    def prepare_data(self) -> None:
+        try:
+            self.images, self.captions, self.caption_iids, self.vocabulary = self._h5load()
+            self._preload = True
+        except:
+            ...
+
 
     def _h5load(self, verbose=False):
         file = h5py.File(os.path.join(self._h5_load_path, "flickr8.hdf5"), "r")
-        images, captions, wmap = {}, {}, json.loads(file.get(f"word_map")[0]) 
+        images, captions, captions_iids, vocabular = {}, {}, {}, Vocabulary.from_h5(file)  
         for split in self._splits:
             images[split] = file.get(f"{split}/images")
             captions[split] = file.get(f"{split}/captions")
-        return images, captions, wmap
+            captions_iids[split] = file.get(f"{split}/captions_iids")
+        return images, captions, captions_iids, vocabular
 
-    def _h5save(self, images, encoded_captions, wordmap):
-        assert self._h5load is not None
+
+    def _h5save(self, images, encoded_captions, encoded_caption_iids):
         file = h5py.File(os.path.join(self._h5_load_path, "flickr8.hdf5"), "a")
         for split in images.keys():
             try:
                 file.create_group(split)
             except ValueError:
                 continue
-    
         for split, data in images.items():
-            data = tr.stack(data)
+            data = torch.stack(data)
             dataset = file.require_dataset(f"{split}/images", shape=data.size(), dtype=np.float32)
             dataset[:] = data
         for split, data in encoded_captions.items():
-            data = tr.FloatTensor(data)
-            data = tr.cat(data.unbind(dim=0))
-            dataset = file.require_dataset(f"{split}/captions", data=data, shape=data.size(), dtype=np.float32)
+            data = torch.FloatTensor(data)
+            dataset = file.require_dataset(f"{split}/captions",  shape=data.size(), dtype=np.float32)
             dataset[:] = data
-        dataset = file.require_dataset("word_map", shape=(1,), dtype=h5py.string_dtype())
-        dataset[0] = json.dumps(wordmap)
+        for split, data in encoded_caption_iids.items():
+            data = torch.FloatTensor(data)
+            dataset = file.require_dataset(f"{split}/captions_iids",  shape=data.size(), dtype=np.float32)
+            dataset[:] = data
+        self.vocabulary.to_h5(file)
 
 
-    def setup(self, stage, verbose=False) -> None:
-        super().setup(stage)
+    def initialize(self, verbose=True):
         captions_dict = json.load(open(self._captions_json))
+        if self._h5_load_path is not None and self._preload:
+            return
         
-        if self._h5_load_path is not None:
-            try:
-                self.images, self.captions, self.word_map = self._h5load()
-                return
-            except Exception as e:
-                if verbose:
-                    print("Exception occured when trying to load the data. Computing the data...")
-
-        
-        words = set()
-
         captions = defaultdict(lambda: [])
         images = defaultdict(lambda: [])
 
-        for image in tqdm.tqdm(captions_dict['images'], desc="Reading files...", disable=verbose, bar_format="{desc} | {bar} | {n_fmt} of {total}"):    
+        reading_files_pgbar = tqdm.tqdm(
+            captions_dict['images'], 
+            desc="Reading files...", 
+            disable=not verbose, 
+            bar_format="{desc} | {bar} | {n_fmt} of {total}")
+
+        captions_count = 0
+        for i, image in enumerate(reading_files_pgbar):   
             image_captions = []
             for caption in image['sentences']:
-                if len(caption['tokens']) <= self.max_caption_length:
+                if len(caption['tokens']) + 2 <= self.max_caption_length:
+                    captions_count += 1
                     image_captions.append(caption['tokens'])
-                    words.update(caption['tokens'])
+                    self.vocabulary.update(caption['tokens'])
+
             if not image_captions:
-                print("skip")
                 continue
 
             image_file_name = image['filename']
             image_file_path = os.path.join(self._image_folder_path, image_file_name)
+
             tensor_image = tvis.io.read_image(image_file_path)
             tensor_image = self.transforms(tensor_image)
 
             split = image['split'] if image['split'] != 'restval' else 'train'
-            captions[split].append(image_captions)
-            images[split].append(tensor_image.to(tr.float32))
+            captions[split].append((len(images[split]), image_captions,))
+            images[split].append(tensor_image.to(torch.float32))
 
-        if verbose:
-            print("Data loading. Scanning the word map...")
-
-        word_map = self._create_word_map(words)
 
         encoded_captions = defaultdict(lambda: [])
-        for spl, data in tqdm.tqdm(captions.items(), desc="Encoding captions...", bar_format="{desc} | {bar} | {n_fmt} of {total}", disable=verbose):
-            for image_captions in copy.deepcopy(data):
+        encoded_captions_iids = defaultdict(lambda: [])
+
+        encoding_pgbar = tqdm.tqdm(desc="Encoding captions...", 
+                                   bar_format="{desc} | {bar} | {n_fmt} of {total}", 
+                                   disable=not verbose,
+                                   total=captions_count)
+    
+        for spl, data in captions.items():
+            for i, image_captions in copy.deepcopy(data):
                 encoded_sentences = []
+                encoded_sentences_iids = []
                 for sentence in image_captions:
-                    encoded = [word_map['<BGN>']] +\
-                            [word_map.get(word, word_map['<WTF>']) for word in sentence] +\
-                            [word_map['<END>']] +\
-                            [word_map['<PAD>']] * (self.max_caption_length - len(sentence) - 2) 
+                    encoded = [self.vocabulary['<START>']] +\
+                            [self.vocabulary[word] for word in sentence] +\
+                            [self.vocabulary['<END>']] +\
+                            [self.vocabulary['<PADDING>']] * (self.max_caption_length - len(sentence) - 2) 
                     assert len(encoded) == self.max_caption_length, len(encoded)
-                    encoded_sentences.append(encoded)
-                                    
-                encoded_captions[spl].append(encoded_sentences)
-        
-        # self.images = images
-        # self.captions = encoded_captions
-
+                    encoded_sentences.append(encoded) 
+                    encoded_sentences_iids.append(i)
+                    encoding_pgbar.update(1)
+                encoded_captions[spl].extend(encoded_sentences)
+                encoded_captions_iids[spl].extend(encoded_sentences_iids)
+        encoding_pgbar.close()
+        for spl in captions.keys():
+            assert len(encoded_captions_iids[spl]) == len(encoded_captions[spl])
+            assert max(encoded_captions_iids[spl]) < len(images[spl])
         if self._h5_load_path is not None:
-            self._h5save(images, encoded_captions, word_map)
+            self._h5save(images, encoded_captions, encoded_captions_iids)
 
-        self.images, self.captions, self.word_map = self._h5load()
-
-    
-    def _create_word_map(self, words=None):
-        word_map = {k: i for i, k in enumerate(words, start=1)}
-        word_map['<BGN>'] = len(word_map)
-        word_map['<END>'] = len(word_map)
-        word_map['<WTF>'] = len(word_map)
-        word_map['<PAD>'] = 0
-        return word_map
-    
-    def _save_word_map(self, word_map):
-        csv = csv.writer(open(self._word_map_path, "w+"), delimeter=",")
-        for word, embedding in word_map.items():
-            csv.writerow([word, embedding])
-
+        self.images, self.captions, self.caption_iids, self.vocabulary = self._h5load()
 
         
     def train_dataloader(self) -> DataLoader:
         return DataLoader(dataset=Flickr8Dataset(images=self.images['train'], 
                                                  captions=self.captions['train'],
-                                                   captions_per_image=5), 
-                                                 batch_size=self.batch_size)
+                                                 captions_iids=self.caption_iids['train']), 
+                                                 batch_size=self.batch_size,
+                                                 shuffle=True,
+                                                 drop_last=True)
     
     def val_dataloader(self) -> DataLoader:
 
         return DataLoader(dataset=Flickr8Dataset(self.images['val'], 
                                                 self.captions['val'],
-                                                captions_per_image=5), 
-                                                batch_size=self.batch_size,)
+                                                self.caption_iids['val'],
+                                                combine=True),
+                                                batch_size=self.batch_size,
+                                                drop_last=True)
     def test_dataloader(self) -> DataLoader:
         return DataLoader(dataset=Flickr8Dataset(self.images['test'], 
                                                 self.captions['test'],
-                                                captions_per_image=5), 
-                                                batch_size=self.batch_size)
+                                                self.caption_iids['test']), 
+                                                batch_size=self.batch_size,
+                                                drop_last=True)
                 
+
+    def setup(self, stage, verbose=False) -> None:
+        super().setup(stage)
+        self.initialize(verbose)
+        
+       
 
 if __name__ == "__main__":
     dl = Flickr8DataModule(captions_path="./datasets/captions/dataset_flickr8k.json", 
                            folder_path="./datasets/flickr8/images",
-                           h5_load="./datasets/h5"
-                           captions_per_image=5)
-    dl.setup(stage="")
-    count = 0
-    for input, label in dl.train_dataloader():
-        ...
-    print(len(dl.train_dataloader().dataset._captions))
-        
+                           h5_load="./datasets/h5",
+                           max_caption_length=20)
+    
+    dl.initialize()
