@@ -8,7 +8,7 @@ class Encoder(L.LightningModule):
     that is used to extract features from visual data
     """
 
-    def __init__(self, feature_map_size: int, embedding_size: int) -> None:
+    def __init__(self, feature_map_size: int, encoder_size: int, dropout: int) -> None:
         """Pretrained ResNet-18 with adaptive pool
 
         Args:
@@ -27,19 +27,20 @@ class Encoder(L.LightningModule):
         # Instead, I am using an adaptive average pooling
         # to make input fit the embedding vector size.
 
-        resnet18 = torchvision.models.resnet18(pretrained=True)
-        self.image_recognition = torch.nn.Sequential(*resnet18.children())[:-2]
+        resnet50 = torchvision.models.resnet50(pretrained=True)
+        self.image_recognition = torch.nn.Sequential(*resnet50.children())[:-2]
         self.adapool = torch.nn.AdaptiveAvgPool2d((feature_map_size, feature_map_size,))
-        self.embedding = torch.nn.Linear(feature_map_size * feature_map_size * 512, embedding_size)
+        self.f_linear = torch.nn.Linear(2048, encoder_size)
         # The main part of the encoder network is implemented, the
         # rest is devoted for image transforms.
         
         
         # These are necessary transforms for the image 
         # fed to ResNet18
-        self.transforms = torchvision.models.ResNet18_Weights.IMAGENET1K_V1.transforms()
+        self.transforms = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.transforms()
         self.relu = torch.nn.ReLU()
-        self.dropout = torch.nn.Dropout(0.5)
+        self.dropout = torch.nn.Dropout(dropout)
+        self.batch_norm = torch.nn.BatchNorm2d(feature_map_size)
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         """Extracts image features
@@ -59,7 +60,9 @@ class Encoder(L.LightningModule):
         """
         X = self.transforms(X)
         X = self.image_recognition(X)
-        X = self.adapool(X)
-        X = self.embedding(X.flatten(start_dim=1))
+        X = self.adapool(X) 
+        X = X.permute(0, 2, 3, 1)
+        X = self.batch_norm(X)  
+        X = self.f_linear(X)
         X = self.dropout(self.relu(X))
-        return X
+        return X.flatten(start_dim=1, end_dim=-2)

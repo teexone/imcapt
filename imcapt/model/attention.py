@@ -14,22 +14,11 @@ class Attention(torch.nn.Module):
         self.softmax = torch.nn.Softmax(dim=1)
 
     def forward(self, encoder_output: torch.Tensor, decoder_hidden: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Computes an attended version of encoded image
-
-        Args:
-            - encoder_output:  The original encoder product. (batch_size, pixel_count, encoded_features)
-            - decoder_hidden:  Decoder hidden state from previous time step (batch_size, decoder_hidden)
-        
-        Returns:
-            - attended_encoding:    `torch.Tensor`  - Attended encoder product  (batch_size, )
-            - alpha:                `torch.Tensor`  - Attention matrix
-        """
         x = self.encoder_output_fc(encoder_output)  # (batch_size, pixel_count, attention_dim)
-        y = self.decoder_hidden_fc(decoder_hidden).unsqueeze(1)  # (batch_size, 1, attention_dim) 
-        s = x + y  # (batch_size, pixel_count, attention_dim)
-        attention = self.attention(s).squeeze(dim=2) # (batch size, pixel_count)
-        alpha = self.softmax(attention).unsqueeze(2) # (batch_size, pixel_count)
+        y = self.decoder_hidden_fc(decoder_hidden)# (batch_size, 1, attention_dim) 
+        s = self.relu(x + y.unsqueeze(1))  # (batch_size, pixel_count, attention_dim)
+        attention = self.attention(s).squeeze(2) # (batch size, pixel_count)
+        alpha = self.softmax(attention) # (batch_size, pixel_count)
         # (batch_size, pixel_count, encoded_feautres) * (batch_size, pixel_count, 1)
         attended_encoding = (encoder_output * alpha.unsqueeze(2)).sum(dim=1) 
         return attended_encoding, alpha

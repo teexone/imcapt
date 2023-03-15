@@ -1,5 +1,6 @@
 from collections import Counter, defaultdict
 import copy
+from multiprocessing import cpu_count
 from typing import Dict, Iterable, List
 import pytorch_lightning as L
 import torchvision as tvis
@@ -10,6 +11,7 @@ import json
 import os
 import tqdm
 import h5py
+import h5pickle
 
 class Vocabulary:
     """Stores vocabular and operates with H5 files"""
@@ -96,7 +98,7 @@ class Vocabulary:
             return self._inverted_word_map.get(str(int(reference)), '<UNKNOWN>')
 
     def _init_special_tokens(self):
-        for x in ["<START>", "<END>", "<UNKNOWN>", "<PADDING>"]:
+        for x in ["<PADDING>", "<START>", "<END>", "<UNKNOWN>",]:
             self.add(x)
 
     def __getitem__(self, key):
@@ -203,7 +205,7 @@ class Flickr8DataModule(L.LightningDataModule):
 
 
     def _h5load(self, verbose=False):
-        file = h5py.File(os.path.join(self._h5_load_path, "flickr8.hdf5"), "r")
+        file = h5pickle.File(os.path.join(self._h5_load_path, "flickr8.hdf5"), "r")
         images, captions, captions_iids, vocabular = {}, {}, {}, Vocabulary.from_h5(file)  
         for split in self._splits:
             images[split] = file.get(f"{split}/images")
@@ -309,11 +311,10 @@ class Flickr8DataModule(L.LightningDataModule):
                                                  captions=self.captions['train'],
                                                  captions_iids=self.caption_iids['train']), 
                                                  batch_size=self.batch_size,
-                                                 shuffle=True,
+                                                 num_workers=cpu_count(),
                                                  drop_last=True)
     
     def val_dataloader(self) -> DataLoader:
-
         return DataLoader(dataset=Flickr8Dataset(self.images['val'], 
                                                 self.captions['val'],
                                                 self.caption_iids['val'],

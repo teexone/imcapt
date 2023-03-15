@@ -2,7 +2,6 @@ import torch
 from imcapt.data.data import Vocabulary
 
 def to_sentence(data: torch.Tensor, vocab: Vocabulary):
-
     if len(data.shape) == 3:
         _, data = data.max(dim=2)
 

@@ -1,13 +1,6 @@
 class ModelConfiguration:
     def __init__(self, 
-                 attention_dim=None, 
-                 embedding_dim=None, 
-                 decoder_dim=None, 
-                 encoder_dim=None, 
-                 dropout_rate=None,
-                 beam_size=3,
-                 feature_map_size=14,
-                 vocabulary=None
+                
                  ) -> None:
         self.attention_dim = attention_dim
         self.embedding_dim = embedding_dim

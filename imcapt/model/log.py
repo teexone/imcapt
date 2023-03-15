@@ -6,7 +6,6 @@ import torch
 import os
 import datetime
 import logging
-import numpy as np
 
 class ModelLogger:
 
@@ -47,17 +46,11 @@ class ModelLogger:
                 self.logger.info(str(v))
         self.buff.clear()
     
-     
-    def log_metrics(self, metrics: Dict[str, float | torch.Tensor], step: Optional[int] = None, epoxide=None) -> None: #epoxide -> epoch
+    def log(self, 
+            metrics: Dict[str, float|torch.Tensor], 
+            step: Optional[int] = None, 
+            epoch=None) -> None:
+        
         for name, value in metrics.items():
             name = name.replace('_', '/')
-            self.buff[name].append((epoxide, step, value,))
-                    
-    def log_hyperparams(self, *args, **kwargs) -> None:
-        return
-    
-    def name(self):
-        return "Image Caption Logger"
-
-    def version(self):
-        return None    
+            self.buff[name].append((epoch, step, value,))
