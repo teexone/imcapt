@@ -1,18 +1,39 @@
+import hydra
+from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.callbacks.stochastic_weight_avg import StochasticWeightAveraging
 import torch
 from imcapt.model.imcapt import ImageCaption
-from imcapt.data.data import Flickr8DataModule
+from imcapt.data.flickr import FlickrDataModule
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import CometLogger
 import warnings
 
+
+@hydra.main(version_base=None, config_path='../config/train', config_name='base')
+def train(config: DictConfig):
+    torch.set_float32_matmul_precision('high')
+    warnings.filterwarnings('ignore')
+    dl = hydra.utils.instantiate(config['data'])
+
+    model = ImageCaption(
+        **config['model'],
+    )
+    # print(len([*model.parameters()]))
+    # optimizer = hydra.utils.instantiate(config['optimizer'], model.parameters())
+    # scheduler = hydra.utils.instantiate(config['lr_scheduler'], optimizer)
+    trainer = hydra.utils.instantiate(config['trainer'])
+    # model.set_optimizer(optimizer)
+    # model.set_scheduler(scheduler)
+    trainer.fit(model, dl)
+
 if __name__ == "__main__":
     torch.set_float32_matmul_precision('high')
     warnings.filterwarnings('ignore')
+    # train()
 
-    dl = Flickr8DataModule(captions_path="./datasets/captions/dataset_flickr8k.json",
+    dl = FlickrDataModule(captions_path="./datasets/captions/dataset_flickr8k.json",
                            folder_path="./datasets/flickr8/images",
-                           h5_load="./datasets/h5",
+                           h5_load="./datasets/h5/flickr8.hdf5",
                            max_caption_length=20,
                            batch_size=8)
     
@@ -34,11 +55,10 @@ if __name__ == "__main__":
     trainer = Trainer(
         max_epochs=100,
         default_root_dir="./outputs", 
-        num_sanity_val_steps=1,
+        num_sanity_val_steps=100,
         check_val_every_n_epoch=1,
-        accumulate_grad_batches=8,
+        accumulate_grad_batches=4,
         logger=[logger],
-        callbacks=[StochasticWeightAveraging(swa_lrs=0.01)],
         accelerator='gpu',
     )
     

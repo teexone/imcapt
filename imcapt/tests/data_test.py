@@ -1,13 +1,13 @@
 import json
 import os
-from imcapt.data.data import Flickr8DataModule
+from imcapt.data.flickr import FlickrDataModule
 import torch as torch
 import torchvision as travis
 import numpy as np
 
-dl = Flickr8DataModule(captions_path="./datasets/captions/dataset_flickr8k.json",
+dl = FlickrDataModule(captions_path="./datasets/captions/dataset_flickr8k.json",
                        folder_path="./datasets/flickr8/images",
-                       h5_load="./datasets/h5",
+                       h5_load="./datasets/h5/flickr8.hdf5",
                        max_caption_length=20
                        )
 dl.setup(stage="")

@@ -1,0 +1,47 @@
+optimizer:
+  _target_: torch.optim.Adam
+  _args_: 
+    lr: 5E-4
+    weight_decay: 1E-6
+    amsgrad: True
+
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _args_:
+    factor: 0.1 
+    patience: 2
+    min_lr: 1E-8 
+    threshold: .1
+    eps: 1E-8
+
+trainer:
+  _target_: pytorch_lightning.trainer.Trainer
+  max_epochs: 20
+  default_root_dir: './outputs'
+  num_sanity_val_steps: 1
+  accumulate_grad_batches: 8
+  check_val_every_n_epoch: 1
+  accelerator: 'gpu'
+  logger:
+    - _target_: pytorch_lightning.loggers.CometLogger
+      _args_:
+        api_key: 'Q5p5IPUko4uk4H294XWLtouyy'
+        project_name: 'image-captioning'
+        experiment_name: 'Basic Training'
+
+model:
+  attention_network_size: 512
+  encoder_size: 512
+  decoder_size: 512
+  dropout_rate: 0
+  feature_map_size: 16
+  embedding_size: 512
+
+data:
+  _target_: imcapt.data.flickr.FlickrDataModule
+  _args_:
+    h5_load: './datasets/h5/flickr30.hdf5'
+    captions_path: './datasets/captions/dataset_flickr30k.json'
+    folder_path: './datasets/flickr30/Images'
+    batch_size: 8
+    max_caption_length: 20

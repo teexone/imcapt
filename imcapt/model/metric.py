@@ -1,6 +1,6 @@
 import torch
 
-from imcapt.data.data import Vocabulary
+from imcapt.data.vocabulary import Vocabulary
 
 class MaskedCrossEntropyLoss(torch.nn.CrossEntropyLoss):
     def __init__(self, vocabulary: Vocabulary, masked_words=["<UNKNOWN>", "<PADDING>"]) -> None:

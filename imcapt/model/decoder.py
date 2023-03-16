@@ -1,7 +1,7 @@
 import numpy as np
 import torch 
 import pytorch_lightning as L
-from imcapt.data.data import Vocabulary
+from imcapt.data.vocabulary import Vocabulary
 from imcapt.model.attention import Attention
 
 
@@ -58,11 +58,11 @@ class Decoder(L.LightningModule):
         """Initializes LSTM state"""
         return (
             # self.initial_hidden(encoded_image).unsqueeze(0).repeat(self.lstm_layer_size, 1, 1).to(self.device), 
-            # self.initial_hidden(encoded_image.mean(dim=1)).to(self.device), 
+            self.initial_hidden(encoded_image.mean(dim=1)).to(self.device), 
             # self.initial_cell(encoded_image).unsqueeze(0).repeat(self.lstm_layer_size, 1, 1).to(self.device)
-            # self.initial_cell(encoded_image.mean(dim=1)).to(self.device)
-            torch.zeros_like(encoded_image.mean(dim=1)).to(self.device),
-            torch.zeros_like(encoded_image.mean(dim=1)).to(self.device),
+            self.initial_cell(encoded_image.mean(dim=1)).to(self.device)
+            # torch.zeros_like(encoded_image.mean(dim=1)).to(self.device),
+            # torch.zeros_like(encoded_image.mean(dim=1)).to(self.device),
         )
     
 
@@ -73,7 +73,7 @@ class Decoder(L.LightningModule):
         batch_size = encoded_images.size(0)
         pixels = encoded_images.size(1)
         vocab_size = self.vocabulary.size()
-        decode_length = captions.eq(self.vocabulary['<END>']).to(torch.int32).argmax(dim=-1) - 1
+        decode_length = captions.eq(self.vocabulary['<END>']).to(torch.int32).argmax(dim=-1)
         inds = decode_length.argsort().flip(dims=(0,))
         decode_length = (decode_length)[inds].cpu().tolist()
         max_decode_length = max(decode_length)
@@ -102,13 +102,14 @@ class Decoder(L.LightningModule):
         
     def forward(self, inputs: torch.Tensor, maximum_length=20, k=5):
         """Used only inference."""
-        batch_size = inputs.shape[0]
+        batch_size = inputs.size(0)
         outputs_ = []
         for idx in range(batch_size):
             outputs_.append(
                 self._forward(inputs[idx], maximum_length, k)
             )
         return outputs_
+
 
     def _forward(self, image: torch.Tensor, max_length=20, k=5):
         image = image.expand(k, *image.size())
@@ -135,8 +136,8 @@ class Decoder(L.LightningModule):
             scores = top_k_scores.expand_as(scores) + scores
 
             top_k_scores, top_k_words = scores.view(-1).topk(k, 0, largest=True, sorted=True)
-            image_inds = top_k_words // vocab_size
-            words_inds = top_k_words % vocab_size
+            image_inds = top_k_words // vocab_size  # in [0, k)
+            words_inds = top_k_words % vocab_size   # in [0, vocab_size)
 
 
             sequences = torch.cat(
@@ -147,6 +148,8 @@ class Decoder(L.LightningModule):
             incomplete_inds = (words_inds != self.vocabulary.get('<END>')).cpu().numpy()
             incomplete_inds = np.arange(len(words_inds.cpu()))[incomplete_inds]
             complete_inds = np.setdiff1d(image_inds.cpu(), incomplete_inds)
+            
+            assert incomplete_inds + complete_inds == 
 
             if len(complete_inds) > 0:
                 complete.extend(sequences[complete_inds].tolist())
@@ -161,7 +164,7 @@ class Decoder(L.LightningModule):
             c = c[remains.cpu()]
             image = image[remains.cpu()]
             top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
-            k_prev_words = image_inds[incomplete_inds].unsqueeze(1)
+            k_prev_words = words_inds[incomplete_inds].unsqueeze(1)
 
             if step > max_length:
                 break

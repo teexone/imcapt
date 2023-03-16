@@ -1,5 +1,5 @@
 import torch
-from imcapt.data.data import Vocabulary
+from imcapt.data.vocabulary import Vocabulary
 
 def to_sentence(data: torch.Tensor, vocab: Vocabulary):
     if len(data.shape) == 3:
