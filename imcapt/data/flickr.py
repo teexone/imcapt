@@ -55,7 +55,6 @@ class FlickrDataModule(L.LightningDataModule):
                  h5_load=None,
                  batch_size=20, 
                  max_caption_length=100,
-
                  vocabular=Vocabulary(),
                  transforms=DEFAULT_TRANSFORMS, 
                  **kwargs) -> None:
@@ -63,6 +62,7 @@ class FlickrDataModule(L.LightningDataModule):
         super().__init__(*args, **kwargs)
         self._image_folder_path = folder_path
         self._captions_json = captions_path
+        self._default_verbose=False
 
         self._splits = ["train", "test", "val"]
 
@@ -86,7 +86,7 @@ class FlickrDataModule(L.LightningDataModule):
             ...
 
 
-    def _h5load(self, verbose=False):
+    def _h5load(self, verbose=True):
         file = h5pickle.File(self._h5_path, "r")
         images, captions, captions_iids, vocabular = {}, {}, {}, Vocabulary.from_h5(file)  
         for split in self._splits:

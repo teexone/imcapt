@@ -57,12 +57,8 @@ class Decoder(L.LightningModule):
     def init_lstm(self, encoded_image: torch.Tensor):
         """Initializes LSTM state"""
         return (
-            # self.initial_hidden(encoded_image).unsqueeze(0).repeat(self.lstm_layer_size, 1, 1).to(self.device), 
             self.initial_hidden(encoded_image.mean(dim=1)).to(self.device), 
-            # self.initial_cell(encoded_image).unsqueeze(0).repeat(self.lstm_layer_size, 1, 1).to(self.device)
             self.initial_cell(encoded_image.mean(dim=1)).to(self.device)
-            # torch.zeros_like(encoded_image.mean(dim=1)).to(self.device),
-            # torch.zeros_like(encoded_image.mean(dim=1)).to(self.device),
         )
     
 
@@ -73,7 +69,7 @@ class Decoder(L.LightningModule):
         batch_size = encoded_images.size(0)
         pixels = encoded_images.size(1)
         vocab_size = self.vocabulary.size()
-        decode_length = captions.eq(self.vocabulary['<END>']).to(torch.int32).argmax(dim=-1)
+        decode_length = captions.eq(self.vocabulary['<END>']).to(torch.int32).argmax(dim=-1) 
         inds = decode_length.argsort().flip(dims=(0,))
         decode_length = (decode_length)[inds].cpu().tolist()
         max_decode_length = max(decode_length)
@@ -85,8 +81,8 @@ class Decoder(L.LightningModule):
         alphas = torch.zeros(batch_size, max_decode_length, pixels).to(self.device)
         h_, c_ = self.init_lstm(encoded_images) # (L, batch_size, embeddings)
         embeddings = self.embed(captions)
-
-        for t in range(max(decode_length)):
+        print(decode_length)
+        for t in range(max_decode_length):
             b_t = sum([l > t for l in decode_length])
             awe_, alphas[:b_t, t, :] = self.attention(encoded_images[:b_t], h_[:b_t])
             gate_ = torch.nn.functional.sigmoid(self.f_beta(h_[:b_t]))
@@ -112,18 +108,18 @@ class Decoder(L.LightningModule):
 
 
     def _forward(self, image: torch.Tensor, max_length=20, k=5):
-        image = image.expand(k, *image.size())
+        image = image.expand(k, *image.size()) # (k, f, encoder_size)
         vocab_size = self.vocabulary.size()
         k_prev_words = torch.LongTensor([[self.vocabulary.get('<START>')]] * k).to(self.device)
         sequences = k_prev_words # (k, 1)
-        top_k_scores = torch.zeros(k, 1).to(self.device)
-        complete = list()   
+        top_k_scores = torch.zeros(k, 1).to(self.device) # (k, 1)
+        complete = list() 
         complete_scores = list()
         h, c = self.init_lstm(image)
         step = 1
         while True:
-            embeddings = self.embed(k_prev_words) # (k, 1, 512)
-            awe, _ = self.attention(image, h)
+            embeddings = self.embed(k_prev_words) # (k, 1) -> (k, 1, embed_size)
+            awe, _ = self.attention(image, h) # (k, f, encoder_size) -> { (k, f), }
             awe *= torch.nn.functional.sigmoid(self.f_beta(h)) 
 
             h, c = self.lstm(
@@ -131,13 +127,13 @@ class Decoder(L.LightningModule):
                 (h, c)
             )
 
-            scores = self.linear(h)
-            scores = torch.nn.functional.softmax(scores.squeeze(), dim=1) # (k, vocab_size)
-            scores = top_k_scores.expand_as(scores) + scores
-
+            scores = self.linear(h) # (k, vocab_size)
+            scores = torch.nn.functional.softmax(scores, dim=1) # (k, vocab_size)
+            scores += top_k_scores.expand_as(scores)
+            
             top_k_scores, top_k_words = scores.view(-1).topk(k, 0, largest=True, sorted=True)
-            image_inds = top_k_words // vocab_size  # in [0, k)
-            words_inds = top_k_words % vocab_size   # in [0, vocab_size)
+            image_inds = top_k_words // vocab_size  # in [0, k)             of size k
+            words_inds = top_k_words % vocab_size   # in [0, vocab_size)    of size k
 
 
             sequences = torch.cat(
@@ -149,20 +145,22 @@ class Decoder(L.LightningModule):
             incomplete_inds = np.arange(len(words_inds.cpu()))[incomplete_inds]
             complete_inds = np.setdiff1d(image_inds.cpu(), incomplete_inds)
             
-            assert incomplete_inds + complete_inds == 
+            assert len(incomplete_inds) + len(complete_inds) == k, (list(incomplete_inds), list(complete_inds),)
 
             if len(complete_inds) > 0:
                 complete.extend(sequences[complete_inds].tolist())
                 complete_scores.extend(top_k_scores[complete_inds])
 
             k -= len(complete_inds)
-            if k == 0:
+
+            if k <= 0:
                 break
+
             sequences = sequences[incomplete_inds]
-            remains = image_inds[incomplete_inds]
-            h = h[remains.cpu()]
-            c = c[remains.cpu()]
-            image = image[remains.cpu()]
+            remains = image_inds[incomplete_inds].cpu()
+            h = h[remains]
+            c = c[remains]
+            image = image[remains]
             top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
             k_prev_words = words_inds[incomplete_inds].unsqueeze(1)
 

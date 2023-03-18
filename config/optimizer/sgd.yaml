@@ -1,0 +1,4 @@
+  _target_: torch.optim.SGD
+  lr: 1E-5
+  weight_decay: 1E-6
+  momentum: 9E-2

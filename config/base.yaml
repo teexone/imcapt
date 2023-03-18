@@ -1,0 +1,9 @@
+defaults:
+  - data: base
+  - model: base
+  - optimizer: adam
+  - trainer: base
+  - lr_scheduler: reduceonplateau
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled 
+  

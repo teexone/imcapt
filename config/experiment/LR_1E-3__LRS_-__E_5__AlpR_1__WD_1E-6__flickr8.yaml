@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /data: flickr8
+  - override /lr_scheduler: steplr
+
+model:
+  alpha_regularization: 1
+
+optimizer:
+  lr: 1E-3
+  weight_decay: 1E-6
+
+trainer:
+  max_epochs: 5
+

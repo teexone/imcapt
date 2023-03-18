@@ -1,0 +1,3 @@
+_target_: pytorch_lightning.loggers.CometLogger
+project_name: image-captioning
+experiment_name: Image Caption Model Training
