@@ -16,9 +16,10 @@ class Attention(torch.nn.Module):
     def forward(self, encoder_output: torch.Tensor, decoder_hidden: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.encoder_output_fc(encoder_output)  # (batch_size, f, attention_dim)
         y = self.decoder_hidden_fc(decoder_hidden)# (batch_size, attention_dim) 
-        s = self.relu(x + y.unsqueeze(1))  # (batch_size, pixel_count, attention_dim)
+        s = self.relu(x + y.unsqueeze(1))  # (batch_size, f, attention_dim)
         attention = self.attention(s).squeeze(2) # (batch size, pixel_count)
-        alpha = self.softmax(attention) # (batch_size, pixel_count)
-        # (batch_size, pixel_count, encoded_feautres) * (batch_size, pixel_count, 1)
+        alpha = self.softmax(attention) # (batch_size, f)
+        # (batch_size, f, encoded_feautres) * (batch_size, pixel_count, 1)
         attended_encoding = (encoder_output * alpha.unsqueeze(2)).sum(dim=1) 
+        # (batch_size, f, encoded_features) , (batch_size, f)
         return attended_encoding, alpha

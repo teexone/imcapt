@@ -85,7 +85,11 @@ class Vocabulary:
         if isinstance(reference, str):
             return self._word_map.get(str(reference), self._word_map['<UNKNOWN>'])
         else:
-            return self._inverted_word_map.get(str(int(reference)), '<UNKNOWN>')
+            if int(reference) in self._inverted_word_map:
+                return self._inverted_word_map.get(int(reference), '<UNKNOWN>')
+            if str(int(reference)) in self._inverted_word_map:
+                return self._inverted_word_map.get(str(int(reference)), '<UNKNOWN>')
+            return '<UNKNOWN>'
 
     def _init_special_tokens(self):
         for x in ["<PADDING>", "<START>", "<END>", "<UNKNOWN>",]:

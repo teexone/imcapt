@@ -14,13 +14,120 @@ import h5py
 import h5pickle
 from imcapt.data.vocabulary import Vocabulary
 
+
+DEFAULT_TRANSFORMS = torch.nn.Sequential(tvis.transforms.Resize((256, 256,)))
+
+
+def prepare_h5(
+            captions_path: os.PathLike, 
+            image_folder_path: os.PathLike, 
+            h5_file_path: os.PathLike, 
+            max_caption_length=40,
+            verbose=True
+        ):
+        """Prepares HDF file with Flickr dataset."""
+        vocabulary = Vocabulary()
+        captions_dict = json.load(open(captions_path))
+        captions = defaultdict(lambda: [])
+        images = defaultdict(lambda: [])
+
+        reading_files_pgbar = tqdm.tqdm(
+            captions_dict['images'], 
+            desc="Reading files...", 
+            disable=not verbose, 
+            bar_format="{desc} | {bar} | {n_fmt} of {total}")
+
+        captions_count = 0
+        for i, image in enumerate(reading_files_pgbar):   
+            image_captions = []
+            for caption in image['sentences']:
+                if len(caption['tokens']) + 2 <= max_caption_length:
+                    captions_count += 1
+                    image_captions.append(caption['tokens'])
+                    vocabulary.update(caption['tokens'])
+
+            if not image_captions:
+                continue
+
+            image_file_name = image['filename']
+            image_file_path = os.path.join(image_folder_path, image_file_name)
+
+            tensor_image = tvis.io.read_image(image_file_path)
+            tensor_image = DEFAULT_TRANSFORMS(tensor_image)
+
+            split = image['split'] if image['split'] != 'restval' else 'train'
+            captions[split].append((len(images[split]), image_captions,))
+            images[split].append(tensor_image.to(torch.float32))
+
+
+        encoded_captions = defaultdict(lambda: [])
+        encoded_captions_iids = defaultdict(lambda: [])
+
+        encoding_pgbar = tqdm.tqdm(desc="Encoding captions...", 
+                                   bar_format="{desc} | {bar} | {n_fmt} of {total}", 
+                                   disable=not verbose,
+                                   total=captions_count)
+    
+        for spl, data in captions.items():
+            for i, image_captions in copy.deepcopy(data):
+                encoded_sentences = []
+                encoded_sentences_iids = []
+                for sentence in image_captions:
+                    encoded = [vocabulary['<START>']] +\
+                            [vocabulary[word] for word in sentence] +\
+                            [vocabulary['<END>']] +\
+                            [vocabulary['<PADDING>']] * (max_caption_length - len(sentence) - 2) 
+                    assert len(encoded) == max_caption_length, len(encoded)
+                    encoded_sentences.append(encoded) 
+                    encoded_sentences_iids.append(i)
+                    encoding_pgbar.update(1)
+                encoded_captions[spl].extend(encoded_sentences)
+                encoded_captions_iids[spl].extend(encoded_sentences_iids)
+        encoding_pgbar.close()
+        for spl in captions.keys():
+            assert len(encoded_captions_iids[spl]) == len(encoded_captions[spl])
+            assert max(encoded_captions_iids[spl]) < len(images[spl])
+
+        file = h5py.File(h5_file_path, "a")
+
+        for split in images.keys():
+            try:
+                file.create_group(split)
+            except ValueError:
+                continue
+
+        for split, data in images.items():
+            data = torch.stack(data)
+            dataset = file.require_dataset(f"{split}/images", shape=data.size(), dtype=np.float32)
+            dataset[:] = data
+        for split, data in encoded_captions.items():
+            data = torch.FloatTensor(data)
+            dataset = file.require_dataset(f"{split}/captions",  shape=data.size(), dtype=np.float32)
+            dataset[:] = data
+        for split, data in encoded_captions_iids.items():
+            data = torch.FloatTensor(data)
+            dataset = file.require_dataset(f"{split}/captions_iids",  shape=data.size(), dtype=np.float32)
+            dataset[:] = data
+        
+        vocabulary.to_h5(file)
+        
+
+
 class FlickrDataset(Dataset):
-    def __init__(self, images, captions, captions_iids, combine=False) -> None:
+    def __init__(
+            self, 
+            images,
+            captions, 
+            captions_iids,
+            reduce_samples_to=-1, 
+            combine=False
+        ) -> None:
         super().__init__()
         self._images = images
         self._captions = captions
         self._captions_iids = captions_iids
         self._combined = combine
+        self._reduce_samples_to = reduce_samples_to
         
         if combine:
             self.__combined = defaultdict(list)
@@ -40,13 +147,15 @@ class FlickrDataset(Dataset):
             return self._images[int(self._captions_iids[index])], torch.LongTensor(self._captions[index])
     
     def __len__(self):
+        if self._reduce_samples_to != -1:
+            return self._reduce_samples_to
+        
         if self._combined:
             return len(self._images)
         else:
             return len(self._captions)
 
 class FlickrDataModule(L.LightningDataModule):
-    DEFAULT_TRANSFORMS = torch.nn.Sequential(tvis.transforms.Resize((256, 256,)))
     
     def __init__(self, 
                 *args, 
@@ -55,6 +164,7 @@ class FlickrDataModule(L.LightningDataModule):
                  h5_load=None,
                  batch_size=20, 
                  max_caption_length=100,
+                 reduce_train_samples_to=-1,
                  vocabular=Vocabulary(),
                  transforms=DEFAULT_TRANSFORMS, 
                  **kwargs) -> None:
@@ -77,6 +187,7 @@ class FlickrDataModule(L.LightningDataModule):
 
         self._h5_path = h5_load
         self._preload = False
+        self._reduce_train_sample = reduce_train_samples_to
 
     def prepare_data(self) -> None:
         try:
@@ -191,6 +302,7 @@ class FlickrDataModule(L.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         return DataLoader(dataset=FlickrDataset(images=self.images['train'], 
                                                  captions=self.captions['train'],
+                                                 reduce_samples_to=self._reduce_train_sample,
                                                  captions_iids=self.caption_iids['train']), 
                                                  batch_size=self.batch_size,
                                                  num_workers=cpu_count(),
@@ -216,11 +328,3 @@ class FlickrDataModule(L.LightningDataModule):
         self.initialize(verbose)
         
        
-
-if __name__ == "__main__":
-    dl = FlickrDataModule(captions_path="./datasets/captions/dataset_flickr30k.json", 
-                           folder_path="./datasets/flickr30/Images",
-                           h5_load="./datasets/h5/flickr30.hdf5",
-                           max_caption_length=20)
-    
-    dl.initialize()

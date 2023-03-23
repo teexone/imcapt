@@ -1,0 +1,4 @@
+_target_: imcapt.data.flickr.FlickrDataModule
+h5_load: ./datasets/h5/flickr30.hdf5
+captions_path: ./datasets/captions/dataset_flickr30k.json
+folder_path: ./datasets/flickr30/Images

@@ -1,9 +1,12 @@
 defaults:
   - data: base
   - model: base
-  - optimizer: adam
   - trainer: base
   - lr_scheduler: reduceonplateau
-  - override hydra/hydra_logging: disabled  
+  - encoder_optimizer: adam
+  - decoder_optimizer: adam
   - override hydra/job_logging: disabled 
-  
+
+
+data:
+  batch_size: 32

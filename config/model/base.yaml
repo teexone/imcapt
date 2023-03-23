@@ -1,7 +1,8 @@
   attention_network_size: 512
   encoder_size: 512
   decoder_size: 512
-  dropout_rate: .2
+  dropout_rate: .5
+  fine_tune_encoder: False
   feature_map_size: 16
   embedding_size: 512
   alpha_regularization: 0
