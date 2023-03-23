@@ -154,7 +154,7 @@ class ImageCaption(L.LightningModule):
         features = self.encoder(image)
         return self.decoder.forward(features)
     
-    def training_step(self, batch):        
+    def training_step(self, batch, batch_idx):        
         """Training routine
 
         Performs a training routine in following steps:
@@ -169,6 +169,7 @@ class ImageCaption(L.LightningModule):
         Args:
             batch (Tuple[Tensor, Tensor]): 
                 A batch of images accompanied with target captions
+            batch_idx (int): index of batch (not used)
 
         Returns:
             Tensor: computed loss
@@ -200,7 +201,7 @@ class ImageCaption(L.LightningModule):
         return loss
     
 
-    def validation_step(self, batch):
+    def validation_step(self, batch, batch_idx):
         """Validation routine 
 
         Performs validation routing in the following steps:
@@ -213,6 +214,7 @@ class ImageCaption(L.LightningModule):
         Args:
             batch (Tuple[Tensor, Tensor]): 
                 A batch of images accompanied with target captions
+            batch_idx (int): index of batch (not used)
 
         """
         image, captions = batch
