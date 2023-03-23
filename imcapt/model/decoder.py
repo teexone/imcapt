@@ -327,7 +327,7 @@ class Decoder(L.LightningModule):
         if len(complete) == 0:
             complete = sequences.tolist()
             complete_scores = top_k_scores.tolist()
-            attention_masks = alphas.tolist()
+            attention_masks = alphas
 
         # If did not finish with <END> make it manually
         for sequence in complete:
