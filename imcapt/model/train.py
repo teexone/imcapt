@@ -41,7 +41,7 @@ def train(config: DictConfig):
         model_args['scheduler_args'] = config['lr_scheduler']
     vocabulary = Vocabulary.from_h5(config['data']['h5_load'])
 
-    if config['from_checkpoint']:
+    if 'from_checkpoint' in config:
         model = ImageCaption.load_from_checkpoint(
             checkpoint_path=config['from_checkpoint'], 
             vocabulary=vocabulary,
