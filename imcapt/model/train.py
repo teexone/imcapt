@@ -31,7 +31,7 @@ def train(config: DictConfig):
     torch.set_float32_matmul_precision('medium')
     warnings.filterwarnings('ignore')
     dl = hydra.utils.instantiate(config['data'])
-    
+
     model_args = dict(config['model'])
     if 'encoder_optimizer' in config:
         model_args['encoder_optimizer_args'] = config['encoder_optimizer']
@@ -39,18 +39,21 @@ def train(config: DictConfig):
         model_args['decoder_optimizer_args'] = config['decoder_optimizer']
     if 'lr_scheduler' in config:
         model_args['scheduler_args'] = config['lr_scheduler']
-    
     vocabulary = Vocabulary.from_h5(config['data']['h5_load'])
-    model = ImageCaption(**model_args, vocabulary=vocabulary)
+
+    if config['from_checkpoint']:
+        model = ImageCaption.load_from_checkpoint(
+            checkpoint_path=config['from_checkpoint'], 
+            vocabulary=vocabulary,
+        )
+    else:
+        model = ImageCaption(**model_args, vocabulary=vocabulary)
   
-    if 'from_checkpoint' in config:
-        trainer = Trainer(**config['trainer'])
-        trainer.fit(model, ckpt_path=config['from_checkpoint'])
-        return
 
     checkpoint = ModelCheckpoint(
         dirpath='./checkpoints',
         save_top_k=-1,
+        every_n_epochs=10,
         save_on_train_epoch_end=True,
     )
 
@@ -60,7 +63,10 @@ def train(config: DictConfig):
         loggers = []
     
     trainer = Trainer(**config['trainer'], logger=loggers, callbacks=[checkpoint])
-    trainer.fit(model, dl)
+    if 'from_checkpoint' in config:
+        trainer.fit(model, dl, ckpt_path=config['from_checkpoint'])
+    else:
+        trainer.fit(model, dl)
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision('high')

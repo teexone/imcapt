@@ -31,6 +31,7 @@ class ImageCaption(L.LightningModule):
                  decoder_optimizer_args=None,
                  alpha_regularization=1,
                  fine_tune_encoder=False,
+                 hydra_cfg=None,
                  *args, **kwargs) -> None:
         """Initializes a module with given hyperparameters
 
@@ -67,7 +68,7 @@ class ImageCaption(L.LightningModule):
         """
         
     
-        super().__init__(*args, **kwargs)
+        super().__init__()
         
         self.criterion = None
         self.vocabulary = None
@@ -220,9 +221,9 @@ class ImageCaption(L.LightningModule):
         image, captions = batch
         sentences = self.forward(image)
 
-        clean_sentences = [self.vocabulary.clean(s) for s in sentences]
+        clean_sentences = [self.vocabulary.clean(s) for s, _ in sentences]
         clean_sentences = [[self.vocabulary.get(x) for x in y] for y in clean_sentences]
-        sentences = [[self.vocabulary.get(x) for x in y] for y in sentences]
+        sentences = [[self.vocabulary.get(x) for x in y] for y, _ in sentences]
         target = to_sentence(captions, self.vocabulary)
 
 
