@@ -102,15 +102,14 @@ def prepare_h5(
             for i, t in enumerate(data):
                 # data = torch.stack(data)
                 dataset[i] = t
-        dataset = file.require_dataset(f"{split}/captions",  shape=data.size(), dtype=np.float32)
         for split, data in encoded_captions.items():
-            data = torch.stack(data)
-            dataset = file.require_dataset(f"{split}/captions", shape=data.size(), dtype=np.float32)
+            data = torch.LongTensor(data)
+            dataset = file.require_dataset(f"{split}/captions",  shape=data.size(), dtype=np.float32)
             dataset[:] = data
         for split, data in encoded_captions_iids.items():
-            dataset = file.require_dataset(f"{split}/captions_iids", shape=(len(data), *data[0].size()), dtype=np.float32)
-            for i, t in enumerate(data):
-                dataset[i] = t
+            data = torch.LongTensor(data)
+            dataset = file.require_dataset(f"{split}/captions_iids",  shape=data.size(), dtype=np.float32)
+            dataset[:] = data
         
         vocabulary.to_h5(file)
         
@@ -225,11 +224,11 @@ class FlickrDataModule(L.LightningDataModule):
                 # data = torch.stack(data)
                 dataset[i] = t
         for split, data in encoded_captions.items():
-            data = torch.stack(data)
+            data = torch.LongTensor(data)
             dataset = file.require_dataset(f"{split}/captions",  shape=data.size(), dtype=np.float32)
             dataset[:] = data
         for split, data in encoded_caption_iids.items():
-            data = torch.FloatTensor(data)
+            data = torch.LongTensor(data)
             dataset = file.require_dataset(f"{split}/captions_iids",  shape=data.size(), dtype=np.float32)
             dataset[:] = data
 

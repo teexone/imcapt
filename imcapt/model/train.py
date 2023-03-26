@@ -6,6 +6,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from imcapt.model.imcapt import ImageCaption
 from imcapt.data.vocabulary import Vocabulary
+from imcapt.data.util import extract_vocabulary_from_karpathy_json
 from pytorch_lightning import Trainer
 
 @hydra.main(version_base=None, config_path=os.path.join(os.getcwd(), 'config'), config_name='base')
@@ -39,7 +40,11 @@ def train(config: DictConfig):
         model_args['decoder_optimizer_args'] = config['decoder_optimizer']
     if 'lr_scheduler' in config:
         model_args['scheduler_args'] = config['lr_scheduler']
-    vocabulary = Vocabulary.from_h5(config['data']['h5_load'])
+
+    if os.path.exists(config['data']['h5_load']):
+        vocabulary = Vocabulary.from_h5(config['data']['h5_load'])
+    else:
+        vocabulary = extract_vocabulary_from_karpathy_json(config['data']['captions_path'])
 
     if 'from_checkpoint' in config:
         model = ImageCaption.load_from_checkpoint(
