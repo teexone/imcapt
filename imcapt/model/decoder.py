@@ -160,6 +160,7 @@ class Decoder(L.LightningModule):
         Launches ~Decoder.infer for each image. See documentation
         for this method for details.
         """
+
         batch_size = inputs.size(0)
         outputs_ = []
         for idx in range(batch_size):

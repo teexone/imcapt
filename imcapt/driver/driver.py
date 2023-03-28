@@ -1,5 +1,5 @@
 import logging
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 import os
 import signal
 import sys
@@ -15,23 +15,26 @@ logger = logging.Logger('status', logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
 def handle_sigint(*args):
-    exit()
+    exit(0)
 
 def init_model_worker(_vocabulary: Vocabulary, checkpoint: str):
-    import warnings
-    warnings.filterwarnings("ignore")
-    global vocabulary, model, worker_logger
-    worker_logger = logging.Logger("worker", level=logging.INFO)
-    worker_handler = logging.StreamHandler(sys.stdout)
-    worker_handler.setFormatter(logging.Formatter("[%(process)d]\t::\t%(message)s"))
-    worker_logger.addHandler(worker_handler)
+    try:
+        import warnings
+        warnings.filterwarnings("ignore")
+        global vocabulary, model, worker_logger
+        worker_logger = logging.Logger("worker", level=logging.INFO)
+        worker_handler = logging.StreamHandler(sys.stdout)
+        worker_handler.setFormatter(logging.Formatter("[%(process)d]\t::\t%(message)s"))
+        worker_logger.addHandler(worker_handler)
 
-    vocabulary = _vocabulary
-    model = ImageCaption.load_from_checkpoint(checkpoint_path=checkpoint, vocabulary=vocabulary)
-    worker_logger.info("Worker is initialized.")
-    
-    signal.signal(signal.SIGINT, handle_sigint)
-    signal.signal(signal.SIGTERM, handle_sigint)
+        vocabulary = _vocabulary
+        model = ImageCaption.load_from_checkpoint(checkpoint_path=checkpoint, vocabulary=vocabulary)
+        worker_logger.info("Worker is initialized.")
+        
+        signal.signal(signal.SIGINT, handle_sigint)
+        signal.signal(signal.SIGTERM, handle_sigint)
+    except:
+        exit(0)
 
 def process_image(img_path: str):
     global model
@@ -49,7 +52,21 @@ def process_image(img_path: str):
         return
 
 
+class Engine:
+    def __init__(self, vocabulary: Vocabulary, ckpt: str, workers=cpu_count() // 2):
+        self.pool = Pool(workers, initializer=init_model_worker, initargs=(vocabulary, ckpt,))
+        
+    def process_images(self, image_paths):
+        results = []
+        for image_path in image_paths:
+            results.append(self.pool.apply_async(process_image, args=(image_path,)))
+        return [x.get() for x in results]
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, handle_sigint)
+    signal.signal(signal.SIGTERM, handle_sigint)
+
     logger.info("Launching...")
     parser = argparse.ArgumentParser()
     parser.add_argument('watch_folder', type=pathlib.Path, help="path to folder to be watched")
@@ -66,18 +83,22 @@ if __name__ == '__main__':
     
     try:
         waiting = True
-        pool = Pool(2,initializer=init_model_worker, initargs=(vocabulary, str(args.ckpt)))
+        pool = Pool(cpu_count() // 2, initializer=init_model_worker, initargs=(vocabulary, str(args.ckpt)))
         while True:
             outputs = []
             files = []
+            file_names = []
             for image in os.listdir(args.watch_folder):
                 print(os.path.join(args.watch_folder, image))
                 files.append(os.path.join(args.watch_folder, image))
+                file_names.append(image)
                 outputs.append(pool.apply_async(process_image, args=(files[-1],)))
 
             if outputs: 
-                with open(os.path.join(args.output_folder, str(int(time.time() * 100))) + '.txt', "w+") as output_file:
-                    for output in outputs:       
+                for output, file in zip(outputs, file_names):  
+                    no_extension_name = "".join(file.split('.')[:-1])
+                    file_to_save = os.path.join(args.output_folder, no_extension_name + '.txt')
+                    with open(file_to_save, "w+") as output_file:
                         output_file.write(
                             " ".join(map(vocabulary.get, output.get())) + '\n',
                         )
@@ -95,6 +116,7 @@ if __name__ == '__main__':
             time.sleep(int(args.i) / 1000)
 
     except KeyboardInterrupt:
+        pool.close()
         pool.terminate()
         pool.join()
 
