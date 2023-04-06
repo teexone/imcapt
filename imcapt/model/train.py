@@ -79,6 +79,8 @@ def train(config: DictConfig):
         trainer.fit(model, dl)
 
 if __name__ == "__main__":
+    import torch.multiprocessing
+    torch.multiprocessing.set_sharing_strategy('file_system')
     torch.set_float32_matmul_precision('high')
     warnings.filterwarnings('ignore')
     train()
