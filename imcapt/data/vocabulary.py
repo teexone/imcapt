@@ -1,6 +1,6 @@
 import json
 import h5py
-from pyparsing import Iterable
+from typing import Iterable
 
 
 class Vocabulary:   

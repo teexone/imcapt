@@ -1,8 +1,8 @@
 import numpy as np
 import torch 
 import pytorch_lightning as L
-from imcapt.data.vocabulary import Vocabulary
-from imcapt.model.attention import Attention
+from ..data.vocabulary import Vocabulary
+from .attention import Attention
 
 
 class Decoder(L.LightningModule):
@@ -59,6 +59,10 @@ class Decoder(L.LightningModule):
         self.initial_hidden = torch.nn.Linear(embed_size, hidden_size)
         self.initial_cell = torch.nn.Linear(embed_size, hidden_size)
 
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+        self.linear.bias.data.fill_(0)
+        self.linear.weight.data.uniform_(-0.1, 0.1)
+
 
 
     def init_lstm(self, encoded_image: torch.Tensor):
@@ -67,6 +71,8 @@ class Decoder(L.LightningModule):
             self.initial_hidden(encoded_image.mean(dim=1)).to(self.device), 
             self.initial_cell(encoded_image.mean(dim=1)).to(self.device)
         )
+    
+
     
 
     

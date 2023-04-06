@@ -1,5 +1,4 @@
 from collections import defaultdict
-from pytorch_lightning.loggers import Logger
 from typing import Dict, Optional
 
 import torch 
