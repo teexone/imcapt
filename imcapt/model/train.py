@@ -4,9 +4,10 @@ import warnings
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-from imcapt.model.imcapt import ImageCaption
-from imcapt.data.vocabulary import Vocabulary
-from imcapt.data.util import extract_vocabulary_from_karpathy_json
+from ..data.download.download import Downloader
+from .imcapt import ImageCaption
+from ..data.vocabulary import Vocabulary
+from ..data.util import extract_vocabulary_from_karpathy_json
 from pytorch_lightning import Trainer
 
 @hydra.main(version_base=None, config_path=os.path.join(os.getcwd(), 'config'), config_name='base')
@@ -31,7 +32,14 @@ def train(config: DictConfig):
     """
     torch.set_float32_matmul_precision('medium')
     warnings.filterwarnings('ignore')
-    dl = hydra.utils.instantiate(config['data'])
+
+    downloader: Downloader = hydra.utils.instantiate(config['data']['download']['downloader'])
+    if not downloader.ispresent():
+        downloader.get(
+            config['data']['download']['get']
+        )
+    
+    dl = hydra.utils.instantiate(config['data']['module'])
 
     model_args = dict(config['model'])
     if 'encoder_optimizer' in config:
@@ -41,10 +49,10 @@ def train(config: DictConfig):
     if 'lr_scheduler' in config:
         model_args['scheduler_args'] = config['lr_scheduler']
 
-    if os.path.exists(config['data']['h5_load']):
-        vocabulary = Vocabulary.from_h5(config['data']['h5_load'])
+    if os.path.exists(config['data']['module']['h5_load']):
+        vocabulary = Vocabulary.from_h5(config['data']['module']['h5_load'])
     else:
-        vocabulary = extract_vocabulary_from_karpathy_json(config['data']['captions_path'])
+        vocabulary = extract_vocabulary_from_karpathy_json(config['data']['module']['captions_path'])
 
     if 'from_checkpoint' in config:
         model = ImageCaption.load_from_checkpoint(
@@ -54,12 +62,9 @@ def train(config: DictConfig):
     else:
         model = ImageCaption(**model_args, vocabulary=vocabulary)
   
-
+    
     checkpoint = ModelCheckpoint(
-        dirpath='./checkpoints',
-        save_top_k=-1,
-        every_n_epochs=10,
-        save_on_train_epoch_end=True,
+        **config['checkpoint']        
     )
 
     if 'loggers' in config:

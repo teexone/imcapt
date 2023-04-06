@@ -5,6 +5,7 @@ defaults:
   - lr_scheduler: reduceonplateau
   - encoder_optimizer: adam
   - decoder_optimizer: adam
+  - checkpoint: base
   - override hydra/job_logging: none 
   - override hydra/hydra_logging: none
 

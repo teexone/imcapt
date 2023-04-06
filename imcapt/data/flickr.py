@@ -1,18 +1,17 @@
-from collections import Counter, defaultdict
 import copy
-from multiprocessing import cpu_count
-from typing import Dict, Iterable, List
+from collections import defaultdict
 import pytorch_lightning as L
 import torchvision as tvis
 import torch as torch
 import numpy as np
-from torch.utils.data import DataLoader, Dataset
 import json
 import os
 import tqdm
 import h5py
 import h5pickle
-from imcapt.data.vocabulary import Vocabulary
+from torch.utils.data import DataLoader, Dataset
+from multiprocessing import cpu_count
+from ..data.vocabulary import Vocabulary
 
 
 DEFAULT_TRANSFORMS = torch.nn.Sequential(tvis.transforms.Resize((256, 256,)))
@@ -175,6 +174,15 @@ class FlickrDataModule(L.LightningDataModule):
         self._image_folder_path = folder_path
         self._captions_json = captions_path
         self._default_verbose=False
+
+        if folder_path is not None and not os.path.exists(folder_path):
+            os.makedirs(os.path.dirname(folder_path), exist_ok=True)
+
+        if captions_path is not None and not os.path.exists(captions_path):
+            os.makedirs(os.path.dirname(captions_path), exist_ok=True)
+
+        if h5_load is not None and not os.path.exists(h5_load):
+            os.makedirs(os.path.dirname(h5_load), exist_ok=True)
 
         self._splits = ["train", "test", "val"]
 

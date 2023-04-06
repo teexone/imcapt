@@ -1,8 +1,7 @@
 import json
 import h5pickle
-import torch
+from .vocabulary import Vocabulary
 
-from imcapt.data.vocabulary import Vocabulary
 
 
 def load_from_h5(path, splits=["train", "val", "test"]):

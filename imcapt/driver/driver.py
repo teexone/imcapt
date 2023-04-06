@@ -1,5 +1,4 @@
 import logging
-from multiprocessing import Pool, cpu_count
 import os
 import signal
 import sys
@@ -10,6 +9,7 @@ import argparse
 import pathlib
 from ..data.vocabulary import Vocabulary
 from ..model.imcapt import ImageCaption
+from multiprocessing import Pool, cpu_count
 
 logger = logging.Logger('status', logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))

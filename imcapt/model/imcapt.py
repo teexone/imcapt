@@ -1,13 +1,14 @@
 import hydra
-from imcapt.model.decoder import Decoder
-from imcapt.model.encoder import Encoder
 
 import pytorch_lightning as L
 import torchmetrics
-import torch 
-from imcapt.model.log import ModelLogger
+import torch
 
-from imcapt.util import to_sentence
+from .log import ModelLogger
+from ..util import to_sentence
+from .encoder import Encoder
+from .decoder import Decoder
+
 
 class ImageCaption(L.LightningModule):
     """An image captioning module.
@@ -247,6 +248,8 @@ class ImageCaption(L.LightningModule):
         })
         self.log("val_bleu4", bleu4.item())
         self.log("val_bleu2", bleu2.item())
+        self.log("val_bleu1", bleu1.item())
+
 
     def on_validation_end(self)-> None:
         """Saves logs once validation is finished
