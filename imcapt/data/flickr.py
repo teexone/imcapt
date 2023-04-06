@@ -247,6 +247,9 @@ class FlickrDataModule(L.LightningDataModule):
         captions_dict = json.load(open(self._captions_json))
         if self._h5_path is not None and self._preload:
             return
+        elif not self._preload:
+            self.prepare_data()
+            if self._preload: return
         
         captions = defaultdict(lambda: [])
         images = defaultdict(lambda: [])
