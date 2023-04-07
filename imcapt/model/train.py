@@ -66,13 +66,15 @@ def train(config: DictConfig):
         model = ImageCaption.load_from_checkpoint(
             checkpoint_path=config['from_checkpoint'], 
             vocabulary=vocabulary,
+            backbone=backbone,
+            transforms=transforms
         )
     else:
         model = ImageCaption(**model_args, 
                              vocabulary=vocabulary, 
                              backbone=backbone,
                              transforms=transforms)
-  
+        
     
     checkpoint = ModelCheckpoint(
         **config['checkpoint']        

@@ -56,11 +56,11 @@ class Encoder(L.LightningModule):
         # Instead, use an adaptive average pooling.
 
         
-        self.backbone = backbone
+        # self.backbone = backbone
         self.transforms = transforms
         
         
-        self.image_recognition = torch.nn.Sequential(*self.backbone.children())[:-2]
+        self.image_recognition = torch.nn.Sequential(*backbone.children())[:-2]
         self.adapool = torch.nn.AdaptiveAvgPool2d((feature_map_size, feature_map_size,))
         self.f_linear = torch.nn.Linear(2048, encoder_size)
 
