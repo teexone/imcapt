@@ -93,7 +93,7 @@ class ImageCaption(L.LightningModule):
         self.automatic_optimization = False
         self.vocabulary = vocabulary
 
-        self.save_hyperparameters(ignore=['vocabulary', 'backbone', 'transforms'])
+        self.save_hyperparameters(ignore=['vocabulary'])
         
         self.encoder = Encoder(
             feature_map_size=self.hparams.feature_map_size, 
