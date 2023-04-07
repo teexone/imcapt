@@ -6,6 +6,7 @@ defaults:
   - encoder_optimizer: adam
   - decoder_optimizer: adam
   - checkpoint: base
+  - model/backbone: resnet50
   - override hydra/job_logging: none 
   - override hydra/hydra_logging: none
 

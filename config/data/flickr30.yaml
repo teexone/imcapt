@@ -1,4 +1,14 @@
-_target_: imcapt.data.flickr.FlickrDataModule
-h5_load: ./datasets/h5/flickr30.hdf5
-captions_path: ./datasets/captions/dataset_flickr30k.json
-folder_path: ./datasets/flickr30/Images
+path: .flickr30
+module:
+  _target_: imcapt.data.flickr.FlickrDataModule
+  h5_load: ${data.path}/h5/flickr30.hdf5
+  captions_path: ${data.path}/dataset_flickr30k.json
+  folder_path: ${data.path}/Images
+download:
+  downloader:
+    _target_: imcapt.data.download.flickr.FlickrDownloader
+    root_dir: ${data.path}
+    flickr_version: flickr30
+  get:
+    - http://download.alobanov.space/flickr30.zip
+    - http://download.alobanov.space/dataset_flickr30k.json

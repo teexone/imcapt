@@ -23,10 +23,13 @@ class ImageCaption(L.LightningModule):
                  embedding_size, 
                  decoder_size, 
                  encoder_size, 
+                 backbone,
+                 transforms,
+                 cut_layers_from=5,
                  dropout_rate=.3,
                  beam_size=5,
-                 vocabulary = None,
                  feature_map_size=14,
+                 vocabulary = None,
                  encoder_optimizer_args=None,
                  scheduler_args=None,
                  decoder_optimizer_args=None,
@@ -47,6 +50,14 @@ class ImageCaption(L.LightningModule):
                 The size of LSTM hidden layer in the decoder network (see ~imcapt.model.decoder) 
             encoder_size (int): 
                 The size of feature dimension of the encoder network (see ~imcapt.model.encoder)
+            backbone (torch.Module):
+                Instance of pre-trained feature extractor (encoder) (see ~imcapt.model.encoder)
+            transforms (torch.Module):
+                Transforms to be performed before supply to
+                backbone encoder model (see ~imcapt.model.encoder)
+            cut_layers_from (int, optional):
+                The starting index from left to
+                enable layers in encoder if ~fine_tune_encoder=True
             dropout_rate (float, optional): 
                 Dropout probability (uniform for all submodules). Defaults to .3.
             beam_size (int, optional): 
@@ -82,13 +93,16 @@ class ImageCaption(L.LightningModule):
         self.automatic_optimization = False
         self.vocabulary = vocabulary
 
-        self.save_hyperparameters(ignore=['vocabulary'])
+        self.save_hyperparameters(ignore=['vocabulary', 'backbone', 'transforms'])
         
         self.encoder = Encoder(
             feature_map_size=self.hparams.feature_map_size, 
             encoder_size=self.hparams.encoder_size,
             fine_tune=self.hparams.fine_tune_encoder,
             dropout=self.hparams.dropout_rate,
+            backbone=backbone,
+            transforms=transforms,
+            cut_layers_from=cut_layers_from
         )
         
         self.decoder = Decoder(
@@ -97,7 +111,7 @@ class ImageCaption(L.LightningModule):
             attention_dim=self.hparams.attention_network_size,
             hidden_size=self.hparams.decoder_size,
             dropout=self.hparams.dropout_rate,
-            vocabulary=self.vocabulary
+            vocabulary=self.vocabulary,    
         )
 
         self.criterion =  torch.nn.CrossEntropyLoss()

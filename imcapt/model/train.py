@@ -30,8 +30,14 @@ def train(config: DictConfig):
     Args:
         config (DictConfig): Hydra configuration for each of the objects
     """
-    torch.set_float32_matmul_precision('medium')
+    import torch.multiprocessing
+    torch.multiprocessing.set_sharing_strategy('file_system')
+    torch.set_float32_matmul_precision('high')
     warnings.filterwarnings('ignore')
+
+    backbone = hydra.utils.instantiate(config['model']['backbone']['model'])
+    transforms = hydra.utils.instantiate(config['model']['backbone']['transforms'])
+
 
     downloader: Downloader = hydra.utils.instantiate(config['data']['download']['downloader'])
     if not downloader.ispresent():
@@ -41,7 +47,9 @@ def train(config: DictConfig):
     
     dl = hydra.utils.instantiate(config['data']['module'])
 
+
     model_args = dict(config['model'])
+    del model_args['backbone']
     if 'encoder_optimizer' in config:
         model_args['encoder_optimizer_args'] = config['encoder_optimizer']
     if 'decoder_optimizer' in config:
@@ -60,7 +68,10 @@ def train(config: DictConfig):
             vocabulary=vocabulary,
         )
     else:
-        model = ImageCaption(**model_args, vocabulary=vocabulary)
+        model = ImageCaption(**model_args, 
+                             vocabulary=vocabulary, 
+                             backbone=backbone,
+                             transforms=transforms)
   
     
     checkpoint = ModelCheckpoint(
@@ -79,8 +90,5 @@ def train(config: DictConfig):
         trainer.fit(model, dl)
 
 if __name__ == "__main__":
-    import torch.multiprocessing
-    torch.multiprocessing.set_sharing_strategy('file_system')
-    torch.set_float32_matmul_precision('high')
-    warnings.filterwarnings('ignore')
+
     train()

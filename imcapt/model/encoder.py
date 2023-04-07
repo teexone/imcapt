@@ -14,13 +14,16 @@ class Encoder(L.LightningModule):
                  feature_map_size: int, 
                  encoder_size: int,
                  dropout: int,
+                 backbone: torch.nn.Module,
+                 transforms: torch.nn.Module,
+                 cut_layers_from=5,
                  fine_tune=False) -> None:
         """
-        Pretrained ResNet-18 with adaptive pool
+        Pretrained model with adaptive pool
 
         Model consists of the following parts:
 
-        1. ResNet50 pre-trained module
+        1. Pre-trained feature-extractor module
         2. Average pooling and linear layer to convert 
            input for decoder
         3. Dropout and batch normalization regularization techniques
@@ -34,6 +37,14 @@ class Encoder(L.LightningModule):
             fine_tune (bool, optional): 
                 If set to True, parameters starting from fifth layer in ResNet 
                 will be enabled to train/ Defaults to False.
+            backbone (torch.Module):
+                Instance of pre-trained feature extractor
+            transforms (torch.Module):
+                Transforms to be performed before supply to
+                backbone model
+            cut_layers_from (int, optional):
+                The starting index from left to
+                enable layers in encoder if ~fine_tune=True
         """
         super().__init__()
 
@@ -44,14 +55,17 @@ class Encoder(L.LightningModule):
         # connected layer is eliminated.
         # Instead, use an adaptive average pooling.
 
-        resnet50 = torchvision.models.resnet50(pretrained=True)
-        self.image_recognition = torch.nn.Sequential(*resnet50.children())[:-2]
+        
+        self.backbone = backbone
+        self.transforms = transforms
+        
+        
+        self.image_recognition = torch.nn.Sequential(*backbone.children())[:-2]
         self.adapool = torch.nn.AdaptiveAvgPool2d((feature_map_size, feature_map_size,))
         self.f_linear = torch.nn.Linear(2048, encoder_size)
 
         # The main part of the encoder network is implemented, the
         # rest is devoted for image transforms.
-        self.transforms = torchvision.models.ResNet50_Weights.IMAGENET1K_V1.transforms()
         
         # Activations and regularizations
         self.relu = torch.nn.ReLU()
@@ -63,7 +77,7 @@ class Encoder(L.LightningModule):
             p.requires_grad = False
             
         # Enable particular laeyrs in fine-tune is enabled
-        for c in list(self.image_recognition.children())[5:]:
+        for c in list(self.image_recognition.children())[cut_layers_from:]:
             for p in c.parameters():
                 p.requires_grad=fine_tune
 

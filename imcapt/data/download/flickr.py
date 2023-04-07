@@ -46,5 +46,5 @@ class FlickrDownloader(Downloader):
         if self._flickr == 'flickr8':
             return "dataset_flickr8k.json" in directory
         if self._flickr == 'flickr30': 
-            return "dataset_flickr30.json" in directory
+            return "dataset_flickr30k.json" in directory
         return False

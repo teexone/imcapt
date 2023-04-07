@@ -1,0 +1,5 @@
+model:
+  _target_:  torchvision.models.resnet152
+  pretrained: True
+transforms:
+  _target_: torchvision.models.ResNet152_Weights.IMAGENET1K_V1.transforms
